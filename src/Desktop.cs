@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -26,6 +25,7 @@ namespace Shiyi
         private readonly SettingsStore store;
         private Preferences prefs;
         private readonly Translator translator = new Translator();
+        private readonly Appearance appearance;
         private readonly Capture capture;
         private readonly Forms.NotifyIcon tray;
         private readonly Window main, popup;
@@ -49,7 +49,10 @@ namespace Shiyi
             string notice;
             prefs = store.Read(out notice);
             Application.Current.Resources.MergedDictionaries.Add(Ui.Load<ResourceDictionary>("Theme.xaml"));
+            appearance = new Appearance(Application.Current);
+            appearance.Apply(prefs);
             main = Ui.Load<Window>("Main.xaml");
+            appearance.StyleTitleBar(main);
             Application.Current.MainWindow = main;
             using (var icon = Ui.Resource("App.ico"))
                 main.Icon = BitmapFrame.Create(icon, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
@@ -77,8 +80,9 @@ namespace Shiyi
                 if (!popupAnchor.HasValue) return;
                 var anchor = popupAnchor.Value;
                 var selected = popupQuery;
-                if (EditSettings(popup)) Translate(selected, anchor);
+                if (EditSettings(popup) && prefs.Configured) Translate(selected, anchor);
             };
+            popup.Get<Button>("PopupOptions").Click += delegate { EditSettings(popup, true); };
             popup.Get<Button>("Dismiss").Click += delegate { DismissPopup(); };
             popup.Get<Button>("Expand").Click += delegate { ExpandPopup(); };
             popup.PreviewKeyDown += delegate(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; DismissPopup(); } };
@@ -111,7 +115,7 @@ namespace Shiyi
         {
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("打开拾译", null, delegate { ShowMain(); });
-            menu.Items.Add("模型设置", null, delegate { ShowMain(); EditSettings(); });
+            menu.Items.Add("设置", null, delegate { ShowMain(); EditSettings(); });
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("退出拾译", null, delegate { Exit(); });
             var icon = new Forms.NotifyIcon { Text = "拾译 · 划词翻译", ContextMenuStrip = menu };
@@ -135,6 +139,7 @@ namespace Shiyi
 
         private void ApplyPreferences()
         {
+            PreviewAppearance(prefs);
             capture.EnableMouse(prefs.SelectionButton);
             main.Get<TextBlock>("ModelLabel").Text = prefs.Configured ? prefs.Model : "尚未连接模型";
             string availability = prefs.SelectionButton && capture.MouseAvailable ? "划词后点蓝点翻译" : "Ctrl+Alt+T 划词翻译";
@@ -144,52 +149,34 @@ namespace Shiyi
             main.Get<TextBlock>("HotkeyLabel").Text = availability;
         }
 
-        private bool EditSettings(Window owner = null)
+        private void PreviewAppearance(Preferences value)
+        {
+            appearance.Apply(value);
+            popup.Opacity = value.PopupOpacity / 100.0;
+        }
+
+        private bool EditSettings(Window owner = null, bool openLook = false)
         {
             if (settings != null) { settings.Activate(); return false; }
             capture.Invalidate();
             if (owner != popup) DismissPopup();
-            var dialog = Ui.Load<Window>("Settings.xaml");
-            dialog.Owner = owner ?? main;
-            dialog.Icon = main.Icon;
-            dialog.MaxHeight = SystemParameters.WorkArea.Height;
-            var address = dialog.Get<TextBox>("Address");
-            var model = dialog.Get<TextBox>("ModelName");
-            var key = dialog.Get<PasswordBox>("KeyBox");
-            var enable = dialog.Get<CheckBox>("EnableChip");
-            var error = dialog.Get<TextBlock>("SettingsError");
-            address.Text = prefs.BaseUrl;
-            model.Text = prefs.Model;
-            key.Password = prefs.ApiKey;
-            enable.IsChecked = prefs.SelectionButton;
-            dialog.Get<Button>("Save").Click += delegate {
+            using (var editor = new SettingsDialog(owner ?? main, prefs, store, translator, appearance, PreviewAppearance, openLook))
+            {
+                settings = editor.Window;
                 try
                 {
-                    Translator.Endpoint(address.Text);
-                    if (string.IsNullOrWhiteSpace(model.Text)) throw new TranslationException("请填写服务提供的模型名称。");
-                    if (key.Password.Trim().Any(char.IsControl)) throw new TranslationException("API Key 中包含无效的控制字符。");
-                    var next = prefs.Copy();
-                    next.BaseUrl = address.Text.Trim();
-                    next.Model = model.Text.Trim();
-                    next.ApiKey = key.Password.Trim();
-                    next.SelectionButton = enable.IsChecked == true;
-                    next.Configured = true;
-                    store.Save(next);
+                    if (settings.ShowDialog() != true || editor.Result == null) return false;
+                    var next = editor.Result;
+                    bool connectionChanged = prefs.BaseUrl != next.BaseUrl || prefs.Model != next.Model ||
+                        prefs.ApiKey != next.ApiKey || prefs.Configured != next.Configured;
                     prefs = next;
-                    dialog.DialogResult = true;
+                    ApplyPreferences();
+                    if (connectionChanged) { DismissPopup(); ResetOutput(); }
+                    if (pending == null) status.Text = "设置已保存";
+                    return true;
                 }
-                catch (Exception ex)
-                {
-                    error.Text = ex is TranslationException ? ex.Message : "保存失败，请检查本地配置目录的写入权限。";
-                    error.Visibility = Visibility.Visible;
-                }
-            };
-            settings = dialog;
-            bool saved;
-            try { saved = dialog.ShowDialog() == true; }
-            finally { settings = null; key.Clear(); }
-            if (saved) { ApplyPreferences(); DismissPopup(); ResetOutput(); status.Text = "模型设置已保存"; }
-            return saved;
+                finally { settings = null; PreviewAppearance(prefs); }
+            }
         }
 
         private void ChangeTarget()
@@ -232,7 +219,7 @@ namespace Shiyi
             copy.IsEnabled = false;
             hint.Text = "译文会显示在这里";
             run.Content = "翻译";
-            status.Text = prefs.Configured ? "就绪" : "请先在模型设置中连接服务";
+            status.Text = prefs.Configured ? "就绪" : "请先在设置中连接模型服务";
         }
 
         private void DismissPopup()
@@ -343,7 +330,7 @@ namespace Shiyi
                     OpenPopup("划词翻译", text.Replace('\r', ' ').Replace('\n', ' '), "连接模型后即可查询所选内容。", "", anchor.Value, true);
                     return;
                 }
-                if (!EditSettings()) return;
+                if (!EditSettings() || !prefs.Configured) return;
             }
             var current = new CancellationTokenSource();
             if (anchor.HasValue)
@@ -400,6 +387,7 @@ namespace Shiyi
             tray.ContextMenuStrip.Dispose();
             tray.Icon.Dispose();
             tray.Dispose();
+            appearance.Dispose();
             voice.Dispose();
             translator.Dispose();
         }

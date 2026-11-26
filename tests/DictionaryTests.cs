@@ -47,6 +47,7 @@ namespace Shiyi
                 Check(rejected, "Malformed or unknown entry");
             }
             Console.WriteLine("Dictionary checks passed.");
+            SettingsTests.Run();
         }
     }
 }

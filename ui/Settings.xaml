@@ -1,26 +1,115 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="拾译 · 模型设置" Width="474" SizeToContent="Height" WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="{StaticResource Paper}" Foreground="{StaticResource Ink}" FontFamily="Microsoft YaHei UI, Segoe UI" UseLayoutRounding="True">
-  <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="24,19,24,21">
-      <TextBlock Text="模型设置" FontSize="24" FontWeight="SemiBold"/>
-      <TextBlock Text="连接兼容 OpenAI Chat Completions 的模型服务。" Style="{StaticResource Hint}" Margin="0,4,0,15"/>
-      <Label Target="{Binding ElementName=Address}" Content="接口地址" Padding="0,0,0,5"/>
-      <TextBox x:Name="Address" Style="{StaticResource Field}" AutomationProperties.Name="接口地址"/>
-      <TextBlock Text="可填写 Base URL 或完整的 /chat/completions 地址。" Style="{StaticResource Hint}" Margin="0,4,0,12"/>
-      <Label Target="{Binding ElementName=ModelName}" Content="模型名称" Padding="0,0,0,5"/>
-      <TextBox x:Name="ModelName" Style="{StaticResource Field}" AutomationProperties.Name="模型名称"/>
-      <Label Target="{Binding ElementName=KeyBox}" Content="API Key" Padding="0,12,0,5"/>
-      <PasswordBox x:Name="KeyBox" Style="{StaticResource Field}" AutomationProperties.Name="API Key"/>
-      <TextBlock Text="密钥由当前 Windows 账户加密保存。无需密钥的本地服务可留空。" Style="{StaticResource Hint}" Margin="0,4,0,15"/>
-      <Separator Margin="0,0,0,13"/>
-      <CheckBox x:Name="EnableChip" Content="鼠标划词后，在选中文字旁显示小蓝点" FontSize="13"/>
-      <TextBlock Text="点击蓝点即可在原文旁查看译文。" Style="{StaticResource Hint}" Margin="0,7,0,0"/>
-      <TextBlock x:Name="SettingsError" TextWrapping="Wrap" Foreground="#A13726" Margin="0,8,0,0" Visibility="Collapsed"/>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,17,0,0">
-        <Button Content="取消" IsCancel="True" MinWidth="68" Margin="0,0,8,0"/>
-        <Button x:Name="Save" Content="保存设置" IsDefault="True" Style="{StaticResource Primary}"/>
+        Title="拾译 · 设置" Width="666" Height="566" MinWidth="490" MinHeight="380" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Surface}" Foreground="{DynamicResource Ink}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13" UseLayoutRounding="True">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Border Background="{DynamicResource Paper}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0" Padding="10,20,10,12">
+      <StackPanel>
+        <TextBlock Text="设置" FontSize="20" FontWeight="SemiBold" Margin="8,0,0,19"/>
+        <RadioButton x:Name="ModelTab" GroupName="Section" Style="{StaticResource Choice}" Content="模型服务" IsChecked="True" Padding="9,8"/>
+        <RadioButton x:Name="LookTab" GroupName="Section" Style="{StaticResource Choice}" Content="外观" Padding="9,8" Margin="0,3,0,0"/>
       </StackPanel>
-    </StackPanel>
-  </ScrollViewer>
+    </Border>
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="22,17,22,14">
+        <Grid>
+          <StackPanel x:Name="ModelsPage">
+            <TextBlock Text="模型服务" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="使用兼容 OpenAI Chat Completions 的服务。" Style="{StaticResource Hint}" Margin="0,3,0,18"/>
+            <Label Content="接口地址 · Base URL" Target="{Binding ElementName=Address}"/>
+            <TextBox x:Name="Address" Style="{StaticResource Field}" AutomationProperties.Name="接口地址"/>
+            <Label Content="API Key" Target="{Binding ElementName=KeyBox}" Margin="0,12,0,0"/>
+            <PasswordBox x:Name="KeyBox" Style="{StaticResource Field}" AutomationProperties.Name="API Key"/>
+            <TextBlock Text="密钥由当前 Windows 账户加密保存。无需鉴权的服务可留空。" Style="{StaticResource Hint}" Margin="0,4,0,16"/>
+            <DockPanel Margin="0,0,0,5">
+              <Button x:Name="RefreshModels" DockPanel.Dock="Right" Content="刷新列表" Padding="8,3" AutomationProperties.Name="刷新模型列表"/>
+              <Label Content="模型" Target="{Binding ElementName=ModelName}" Padding="0" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Grid x:Name="ModelField">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBox x:Name="ModelName" Style="{StaticResource Field}" AutomationProperties.Name="模型名称" ToolTip="可直接输入服务提供的模型 ID"/>
+              <Button x:Name="PickModel" Grid.Column="1" Margin="5,0,0,0" AutomationProperties.Name="选择模型" Content="选择模型 ▾" Padding="9,4"/>
+              <Popup x:Name="ModelMenu" PlacementTarget="{Binding ElementName=ModelField}" Placement="Bottom" AllowsTransparency="True" StaysOpen="False">
+                <Border x:Name="MenuBody" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource ControlLine}" BorderThickness="1" CornerRadius="7" Padding="7">
+                  <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid>
+                      <TextBox x:Name="ModelSearch" AutomationProperties.Name="搜索模型" Style="{StaticResource Field}"/>
+                      <TextBlock Text="搜索模型…" IsHitTestVisible="False" Margin="10,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/>
+                          <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=ModelSearch}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+                        </Style></TextBlock.Style>
+                      </TextBlock>
+                    </Grid>
+                    <ListBox x:Name="ModelList" Grid.Row="1" AutomationProperties.Name="可用模型" MaxHeight="205" Margin="0,5,0,0"
+                             BorderThickness="0" Background="{DynamicResource Surface}" ItemContainerStyle="{StaticResource ModelRow}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      <ListBox.ItemTemplate><DataTemplate><DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Mark}" Foreground="{DynamicResource AccentText}" FontWeight="Bold" Margin="8,0,0,0"/>
+                        <TextBlock Text="{Binding Id}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Id}"/>
+                      </DockPanel></DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="MenuEmpty" Grid.Row="2" Style="{StaticResource Hint}" Margin="6" TextWrapping="Wrap"/>
+                  </Grid>
+                </Border>
+              </Popup>
+            </Grid>
+            <TextBlock x:Name="CatalogStatus" Style="{StaticResource Hint}" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
+          </StackPanel>
+          <StackPanel x:Name="LookPage" Visibility="Collapsed">
+            <TextBlock Text="外观" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,13"/>
+            <TextBlock Text="显示模式" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <Border Background="{DynamicResource Soft}" CornerRadius="6" Padding="2" HorizontalAlignment="Left">
+              <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="LightMode" GroupName="Mode" Style="{StaticResource Choice}" Content="浅色"/>
+                <RadioButton x:Name="DarkMode" GroupName="Mode" Style="{StaticResource Choice}" Content="深色"/>
+                <RadioButton x:Name="SystemMode" GroupName="Mode" Style="{StaticResource Choice}" Content="跟随系统"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="主题配色" FontWeight="SemiBold" Margin="0,12,0,3"/>
+            <WrapPanel x:Name="Swatches"/>
+            <DockPanel Margin="0,9,0,0">
+              <Label Content="强调色" Target="{Binding ElementName=HexColor}" VerticalAlignment="Center" Padding="0,0,9,0"/>
+              <TextBox x:Name="HexColor" Width="95" MaxLength="7" FontFamily="Consolas, Microsoft YaHei UI" Style="{StaticResource Field}" AutomationProperties.Name="自定义十六进制颜色"/>
+              <Button x:Name="PickColor" Content="选色…" Margin="6,0,0,0" Padding="9,3"/>
+              <Button x:Name="PresetColor" Content="恢复预设色" Margin="6,0,0,0" Padding="8,3" HorizontalAlignment="Left"/>
+            </DockPanel>
+            <Border Height="1" Background="{DynamicResource Line}" Margin="0,13,0,12"/>
+            <DockPanel><TextBlock x:Name="OpacityValue" DockPanel.Dock="Right" Foreground="{DynamicResource AccentText}" FontWeight="SemiBold"/><TextBlock Text="悬浮窗不透明度" FontWeight="SemiBold"/></DockPanel>
+            <Slider x:Name="OpacityLevel" AutomationProperties.Name="悬浮窗不透明度" Minimum="20" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True" Margin="0,5,0,0">
+              <Slider.Template><ControlTemplate TargetType="Slider">
+                <Grid Height="21" Background="Transparent"><Track x:Name="PART_Track" VerticalAlignment="Center">
+                  <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="{DynamicResource Accent}" Height="4" CornerRadius="2"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+                  <Track.Thumb><Thumb Width="15" Height="17"><Thumb.Template><ControlTemplate TargetType="Thumb"><Ellipse Fill="{DynamicResource Accent}" Stroke="{DynamicResource ControlLine}" StrokeThickness="1"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+                  <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="{DynamicResource ControlLine}" Height="4" CornerRadius="2"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+                </Track></Grid>
+              </ControlTemplate></Slider.Template>
+            </Slider>
+            <DockPanel><TextBlock DockPanel.Dock="Right" Text="完全不透明" Style="{StaticResource Hint}"/><TextBlock Text="更透明" Style="{StaticResource Hint}"/></DockPanel>
+            <Border Margin="0,8,0,12" CornerRadius="6" BorderBrush="{DynamicResource Line}" BorderThickness="1" Padding="14,8">
+              <Border.Background><DrawingBrush TileMode="Tile" Viewport="0,0,14,14" ViewportUnits="Absolute">
+                <DrawingBrush.Drawing><DrawingGroup>
+                  <GeometryDrawing Brush="#D3D9E0" Geometry="M 0,0 H 14 V 14 H 0 Z"/>
+                  <GeometryDrawing Brush="#B4BEC9" Geometry="M 0,0 H 7 V 7 H 0 Z M 7,7 H 14 V 14 H 7 Z"/>
+                </DrawingGroup></DrawingBrush.Drawing>
+              </DrawingBrush></Border.Background>
+              <Border x:Name="SamplePopup" MaxWidth="250" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource ControlLine}" BorderThickness="1" CornerRadius="6" Padding="13,6">
+                <StackPanel><TextBlock Text="悬浮窗预览" FontSize="12" Foreground="{DynamicResource AccentText}" FontWeight="SemiBold"/><TextBlock Text="你好，世界。" FontSize="15" Margin="0,2,0,0"/></StackPanel>
+              </Border>
+            </Border>
+            <CheckBox x:Name="EnableChip" Content="鼠标划词后显示小蓝点"/>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+      <Border Grid.Row="1" Background="{DynamicResource Paper}" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="20,10">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button Content="取消" IsCancel="True" MinWidth="62" Margin="0,0,7,0"/>
+            <Button x:Name="Save" Content="保存设置" IsDefault="True" Style="{StaticResource Primary}"/>
+          </StackPanel>
+          <TextBlock x:Name="SettingsError" TextWrapping="Wrap" Foreground="{DynamicResource Danger}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
 </Window>
